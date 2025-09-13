@@ -1,7 +1,16 @@
 package main
 
-import "fmt"
+import (
+	"service_orhestrator/internal/logger"
+)
 
 func main() {
-	fmt.Println("Hello, world!")
+	// create logger
+	log := logger.New("./logs/orch.log", 10, 5, 30, true)
+
+	// init logger
+	log.Init(logger.LogDebug)
+
+	// deinit logger
+	log.Deinit()
 }

@@ -1,7 +1,7 @@
 package main
 
 import (
-	"service_orhestrator/internal/logger"
+	"service_orchestrator/internal/components/logger"
 )
 
 func main() {

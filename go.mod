@@ -1,4 +1,4 @@
-module service_orhestrator
+module service_orchestrator
 
 go 1.25.1
 

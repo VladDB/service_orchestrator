@@ -36,8 +36,7 @@ func (u *Process) isRunning() bool {
 			parts := strings.Fields(line)
 			if len(parts) > 1 {
 				letter := string(parts[1][0])
-				_, ok := globals.ProcSystemStates[letter]
-				if ok {
+				if _, ok := globals.ProcSystemStates[letter]; ok {
 					procState = globals.ProcSystemStates[letter] == globals.State_Work
 				} else {
 					slog.Error("Unknown state in status file", "pid", u.Pid, "status", letter)

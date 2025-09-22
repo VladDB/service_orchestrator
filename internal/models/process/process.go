@@ -164,16 +164,12 @@ func (u *Process) Stop() error {
 }
 
 // restart process
-func (u *Process) Restart() bool {
+func (u *Process) Restart() error {
 	err := u.Stop()
 	if err != nil {
-		return false
+		return err
 	}
-	err = u.Start()
-	if err != nil {
-		return false
-	}
-	return true
+	return u.Start()
 }
 
 // update process status, check is it working still

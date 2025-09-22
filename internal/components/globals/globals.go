@@ -14,6 +14,7 @@ const (
 	State_Work
 	State_Starting
 	State_Failed
+	State_Timeout
 )
 
 // actions for units
@@ -24,6 +25,7 @@ const (
 	Act_Restart
 	Act_StartAll
 	Act_StopAll
+	Act_ReloadAll
 )
 
 var ProcSystemStates = map[string]int{
@@ -42,7 +44,7 @@ type UnitSettings struct {
 	Name         string   // unit's name
 	Cmd          string   // path to exec file
 	Args         []string // args for the exec file
-	UseRestart   int      // flag for restarting unit if it failed
+	UseRestart   bool     // flag for restarting unit if it failed
 	RestartDelay uint     // delay before restart of the unit
 	AutoStart    bool     // start with start main process
 }

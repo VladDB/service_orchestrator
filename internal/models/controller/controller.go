@@ -2,28 +2,160 @@ package controller
 
 import (
 	"log/slog"
+	"service_orchestrator/internal/components/globals"
+	"service_orchestrator/internal/models/manager"
 	"service_orchestrator/internal/models/process"
+	"sync"
+	"time"
 )
 
 // structure for controlling all units
 type Controller struct {
-	units []*process.Process
+	processes []*process.Process
 }
 
-func (c *Controller) AddUnit(u *process.Process) {
-	u.Id = len(c.units) + 1
-	c.units = append(c.units, u)
-	slog.Debug("Add new unit to the controller", "id", u.Id)
+func (c *Controller) AddUnit(p *process.Process) {
+	p.Id = len(c.processes) + 1
+	c.processes = append(c.processes, p)
+	slog.Debug("Add new unit to the controller", "id", p.Id)
 }
 
 // starting all units
-func (c *Controller) StarAllUnits() {}
+func (c *Controller) startAllUnits(checkAutoStart bool) {
+	slog.Debug("Starting all processes")
+	var wg sync.WaitGroup
+	unitManager := manager.GetInstance()
+	for _, proc := range c.processes {
+		unit := unitManager.GetUnit(proc.Id)
+		if checkAutoStart && !unit.Settings.AutoStart {
+			continue
+		}
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			proc.Start()
+		}()
+	}
+	wg.Wait()
+	slog.Debug("All processes were started")
+}
 
 // stopping all units
-func (c *Controller) StopAllUnit() {}
+func (c *Controller) stopAllUnit() {
+	slog.Debug("Stopping all processes")
+	var wg sync.WaitGroup
+	for _, proc := range c.processes {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			proc.Stop()
+		}()
+	}
+	wg.Wait()
+	slog.Debug("All processes were stopped")
+}
 
 // reload all units, read units config file and merge with current settings
-func (c *Controller) ReloadUnits() {}
+func (c *Controller) reloadUnits() {
+	// update config, if it change then reload proc
+}
 
 // main working function. Controlling all units in the thread
-func Run() {}
+func (c *Controller) Run() {
+	checkDelay := 5
+	slog.Info("Run controller loop")
+
+	// check cache processes
+
+	// start all with auto start
+	c.startAllUnits(true)
+
+	time.Sleep(time.Duration(checkDelay) * time.Second)
+
+	unitManager := manager.GetInstance()
+	for globals.ProcessRunning.Load() {
+		// check global actions
+		globalAct := unitManager.GetGlobalAction()
+		if globalAct != globals.Act_NoAction {
+			switch globalAct {
+			case globals.Act_StartAll:
+				c.startAllUnits(false)
+			case globals.Act_StopAll:
+				c.stopAllUnit()
+			case globals.Act_ReloadAll:
+				c.reloadUnits()
+			}
+			// set global action to default
+			unitManager.SetGlobalAction(globals.Act_NoAction)
+			// delay before next check
+			time.Sleep(time.Duration(checkDelay) * time.Second)
+			continue
+		}
+
+		// check all processes
+		for _, proc := range c.processes {
+			// update unit state
+			proc.UpdateStatus()
+			unit := unitManager.GetUnit(proc.Id)
+
+			// check action for process
+			if unit.Action != globals.Act_NoAction {
+				var err error
+				var actionStr string
+				switch unit.Action {
+				case globals.Act_Start:
+					err = proc.Start()
+					actionStr = "start"
+				case globals.Act_Restart:
+					err = proc.Restart()
+					actionStr = "restart"
+				case globals.Act_Stop:
+					err = proc.Stop()
+					actionStr = "stop"
+				}
+				if err != nil {
+					slog.Error("Failed while applying action",
+						"name", unit.Settings.Name, "act", actionStr, "error", err.Error())
+				} else {
+					slog.Info("Apply action for process", "name", unit.Settings.Name, "act", actionStr)
+				}
+				// set default action
+				unitManager.SetUnitAction(proc.Id, globals.Act_NoAction)
+
+				continue
+			}
+
+			// check process status
+			switch unit.State {
+			case globals.State_Failed:
+				// if it failed update time
+				unitManager.SetUnitStopTime(proc.Id, time.Now())
+				// set waiting status
+				unitManager.SetUnitAction(proc.Id, globals.State_Timeout)
+				slog.Warn("Process is failed, begin waiting for restart")
+			case globals.State_Timeout:
+				if unit.Settings.UseRestart {
+					// if  process with restart check time of fail
+					if time.Since(unit.StopTime) >= time.Duration(unit.Settings.RestartDelay) {
+						slog.Info("Restarting process after fail", "name", unit.Settings.Name)
+						err := proc.Restart()
+						if err != nil {
+							slog.Error("Failed to restart process", "name", unit.Settings.Name)
+							unitManager.SetUnitAction(proc.Id, globals.State_Failed)
+						} else {
+							slog.Info("Process was restarted after fail", "name", unit.Settings.Name)
+						}
+					}
+				} else {
+					unitManager.SetUnitAction(proc.Id, globals.State_Stop)
+					slog.Warn("Process in timeout state, but restart is not configured", "name", unit.Settings.Name)
+				}
+			}
+		}
+		// delay before next check
+		time.Sleep(time.Duration(checkDelay) * time.Second)
+	}
+
+	// stop all processes
+	c.stopAllUnit()
+}

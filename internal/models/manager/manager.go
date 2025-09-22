@@ -73,6 +73,15 @@ func (m *Manager) SetUnitAction(id, act int) {
 	}
 }
 
+func (m *Manager) SetUnitStopTime(id int, stopTime time.Time) {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	if u, ok := m.units[id]; ok {
+		u.StopTime = stopTime
+	}
+}
+
 func (m *Manager) UpdateUnitSettings(id int, settings globals.UnitSettings) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()

@@ -30,11 +30,9 @@ func (c *Controller) startAllUnits(checkAutoStart bool) {
 		if checkAutoStart && !unit.Settings.AutoStart {
 			continue
 		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			proc.Start()
-		}()
+		})
 	}
 	wg.Wait()
 	slog.Debug("All processes were started")
@@ -45,11 +43,9 @@ func (c *Controller) stopAllUnit() {
 	slog.Debug("Stopping all processes")
 	var wg sync.WaitGroup
 	for _, proc := range c.processes {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			proc.Stop()
-		}()
+		})
 	}
 	wg.Wait()
 	slog.Debug("All processes were stopped")

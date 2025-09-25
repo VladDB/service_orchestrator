@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"service_orchestrator/internal/components/configuration"
 	"service_orchestrator/internal/components/globals"
 	"service_orchestrator/internal/components/logger"
 	"syscall"
@@ -19,15 +20,24 @@ func main() {
 
 	// get bin path
 	binPath := os.Args[0]
-	binPath = filepath.Dir(binPath)
+
+	globals.BinPath = filepath.Dir(binPath)
+	globals.BinPath = filepath.Dir(globals.BinPath)
 
 	// create logger
-	loggerPath := binPath + "logs/orch.log"
+	loggerPath := filepath.Join(globals.BinPath, "/orchestrator_assets/logs/orch.log")
 	log := logger.New(loggerPath, 10, 5, 30, true)
 
 	// init logger
 	log.Init(logger.LogDebug)
 	defer log.Deinit()
+
+	// read config
+	_, err := configuration.ReadConfiguration()
+	if err != nil {
+		slog.Error("Bad configuration")
+		return
+	}
 
 	// handle args
 	slog.Debug("CMD", "value", fmt.Sprint(os.Args))

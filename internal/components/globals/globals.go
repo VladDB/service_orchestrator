@@ -7,6 +7,10 @@ import (
 
 var ProcessRunning atomic.Bool
 
+var BinPath string
+
+var HttpPort int
+
 // unit state
 const (
 	State_Stop = iota

@@ -1,0 +1,21 @@
+<configuration>
+    <http_port>8888</http_port>
+    <debug_log>true</debug_log>
+    <vars>
+        <var id="src">/opt/some/bin</var>
+    </vars>
+    <global_settings>
+        <auto_start>true</auto_start>
+        <restart delay="30">true</restart>
+    </global_settings>
+    <units>
+        <unit name="Some exe 1">
+            <cmd>$src/some.exe</cmd>
+            <args>-dl -daemon</args>
+        </unit>
+        <unit name="Какой-то exe 2">
+            <cmd>$src/some2.exe</cmd>
+            <args>-dl -daemon</args>
+        </unit>
+    </units>
+</configuration>

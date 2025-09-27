@@ -9,6 +9,8 @@ import (
 	"service_orchestrator/internal/components/configuration"
 	"service_orchestrator/internal/components/globals"
 	"service_orchestrator/internal/components/logger"
+	"service_orchestrator/internal/models/controller"
+	"sync"
 	"syscall"
 
 	"golang.org/x/term"
@@ -33,13 +35,6 @@ func main() {
 	log.Init()
 	defer log.Deinit()
 
-	// read config
-	_, err := configuration.ReadConfiguration(log)
-	if err != nil {
-		slog.Error("Bad configuration")
-		return
-	}
-
 	// handle args
 	slog.Debug("CMD", "value", fmt.Sprint(os.Args))
 
@@ -47,11 +42,30 @@ func main() {
 	mode := "unknown"
 	if len(os.Args) > 1 {
 		mode = os.Args[1]
-		slog.Debug("Running mode", "mode", mode)
+		slog.Info("Running mode", "mode", mode)
 	} else {
 		PrintInfo()
 		return
 	}
+
+	// read config
+	units, err := configuration.ReadConfiguration(log)
+	if err != nil {
+		slog.Error("Bad configuration")
+		return
+	}
+
+	var control controller.Controller
+	// add units to controller
+	for _, unit := range *units {
+		control.AddUnit(unit)
+	}
+
+	// run controller unit managing
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		control.Run()
+	})
 
 	switch mode {
 	case "console":
@@ -62,8 +76,7 @@ func main() {
 		PrintInfo()
 	}
 
-	globals.ProcessRunning.Store(false)
-
+	wg.Wait()
 }
 
 func PrintInfo() {

@@ -14,9 +14,10 @@ type Controller struct {
 	processes []*process.Process
 }
 
-func (c *Controller) AddUnit(p *process.Process) {
-	p.Id = len(c.processes) + 1
-	c.processes = append(c.processes, p)
+func (c *Controller) AddUnit(settings globals.UnitSettings) {
+	var p process.Process
+	p.Id = manager.GetInstance().AddUnit(settings)
+	c.processes = append(c.processes, &p)
 	slog.Debug("Add new unit to the controller", "id", p.Id)
 }
 
@@ -151,6 +152,8 @@ func (c *Controller) Run() {
 		// delay before next check
 		time.Sleep(time.Duration(checkDelay) * time.Second)
 	}
+
+	slog.Info("Stop controller loop")
 
 	// stop all processes
 	c.stopAllUnit()

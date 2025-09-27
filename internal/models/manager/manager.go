@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"log/slog"
 	"service_orchestrator/internal/components/globals"
 	"sync"
 	"time"
@@ -26,9 +27,24 @@ func GetInstance() *Manager {
 	return instance
 }
 
-func (m *Manager) AddUnit(settings globals.Unit) {
+func (m *Manager) AddUnit(settings globals.UnitSettings) int {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
+
+	var newId int
+	unitsLen := len(m.units)
+	if unitsLen == 0 {
+		newId = 1
+	} else {
+		newId = unitsLen + 1
+	}
+	m.units[newId] = globals.CreateUnit(settings)
+	slog.Debug("Add new unit to manager",
+		"name", settings.Name,
+		"cmd", settings.Cmd,
+		"args", settings.Args)
+
+	return newId
 }
 
 func (m *Manager) RemoveUnit(id int) {

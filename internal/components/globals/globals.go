@@ -62,3 +62,11 @@ type Unit struct {
 	StartTime time.Time
 	StopTime  time.Time
 }
+
+func CreateUnit(settings UnitSettings) *Unit {
+	var unit Unit
+	unit.Settings = settings
+	unit.State = State_Stop
+	unit.Action = Act_NoAction
+	return &unit
+}

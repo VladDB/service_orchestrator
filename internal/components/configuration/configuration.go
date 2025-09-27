@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"service_orchestrator/internal/components/globals"
+	"service_orchestrator/internal/components/logger"
 	"strings"
 )
 
@@ -36,7 +37,7 @@ type configuration struct {
 	} `xml:"units>unit"`
 }
 
-func ReadConfiguration() (*[]globals.UnitSettings, error) {
+func ReadConfiguration(logInstance *logger.Logger) (*[]globals.UnitSettings, error) {
 	configPath := filepath.Join(globals.BinPath, "/orchestrator_assets/configuration.xml")
 	data, err := os.ReadFile(configPath)
 	if err != nil {
@@ -53,11 +54,12 @@ func ReadConfiguration() (*[]globals.UnitSettings, error) {
 
 	// set global settings
 	// update logLevel
-	slog.Info("Set log level debug", "val", config.DebugLog)
 	if config.DebugLog {
-		slog.SetLogLoggerLevel(slog.LevelDebug)
-		slog.Debug("Set debug log")
+		globals.LogLevel = logger.LogDebug
+	} else {
+		globals.LogLevel = logger.LogInfo
 	}
+
 	// set http port
 	if globals.HttpPort != 0 {
 		globals.HttpPort = config.Port

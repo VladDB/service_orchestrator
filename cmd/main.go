@@ -29,11 +29,12 @@ func main() {
 	log := logger.New(loggerPath, 10, 5, 30, true)
 
 	// init logger
-	log.Init(logger.LogDebug)
+	globals.LogLevel = logger.LogInfo
+	log.Init()
 	defer log.Deinit()
 
 	// read config
-	_, err := configuration.ReadConfiguration()
+	_, err := configuration.ReadConfiguration(log)
 	if err != nil {
 		slog.Error("Bad configuration")
 		return

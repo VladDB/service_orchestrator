@@ -11,6 +11,8 @@ var BinPath string
 
 var HttpPort int
 
+var LogLevel int
+
 // unit state
 const (
 	State_Stop = iota

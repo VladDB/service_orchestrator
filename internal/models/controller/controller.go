@@ -2,6 +2,7 @@ package controller
 
 import (
 	"log/slog"
+	"service_orchestrator/internal/components/configuration"
 	"service_orchestrator/internal/components/globals"
 	"service_orchestrator/internal/models/manager"
 	"service_orchestrator/internal/models/process"
@@ -27,7 +28,11 @@ func (c *Controller) startAllUnits(checkAutoStart bool) {
 	var wg sync.WaitGroup
 	unitManager := manager.GetInstance()
 	for _, proc := range c.processes {
-		unit := unitManager.GetUnit(proc.Id)
+		unit, err := unitManager.GetUnit(proc.Id)
+		if err != nil {
+			slog.Error("Failed to get unit while starting all", "id", proc.Id, "error", err.Error())
+			continue
+		}
 		if checkAutoStart && !unit.Settings.AutoStart {
 			continue
 		}
@@ -53,8 +58,109 @@ func (c *Controller) stopAllUnit() {
 }
 
 // reload all units, read units config file and merge with current settings
+// restarting updated units
 func (c *Controller) reloadUnits() {
-	// update config, if it change then reload proc
+	slog.Info("Reload units configuration")
+
+	unitManager := manager.GetInstance()
+	// prepare current settings
+	var currentSettings []struct {
+		proc    *process.Process
+		setting globals.UnitSettings
+	}
+
+	for _, proc := range c.processes {
+		procUnit, err := unitManager.GetUnit(proc.Id)
+		if err != nil {
+			slog.Error("Failed to get unit while reloading", "id", proc.Id, "error", err.Error())
+			continue
+		}
+		currentSettings = append(currentSettings, struct {
+			proc    *process.Process
+			setting globals.UnitSettings
+		}{proc: proc, setting: procUnit.Settings})
+	}
+
+	// get new settings
+	newSettings, err := configuration.ReadConfiguration(nil)
+	if err != nil {
+		slog.Error("Failed to read new configuration", "error", err.Error())
+		return
+	}
+
+	// prepare map for quick access
+	newSettingsMap := make(map[string]globals.UnitSettings)
+	for _, newUnit := range *newSettings {
+		newSettingsMap[newUnit.Name] = newUnit
+	}
+
+	var wg sync.WaitGroup
+	// compare new and old settings
+	for _, curr := range currentSettings {
+		if newUnit, ok := newSettingsMap[curr.setting.Name]; ok {
+			// compare cmd and args
+			if newUnit.Cmd != curr.setting.Name ||
+				!equalStringSlices(newUnit.Args, curr.setting.Args) {
+				slog.Info("Unit settings changed, reload it", "name", curr.setting.Name)
+				wg.Go(func() {
+					curr.proc.Stop()
+					unitManager.UpdateUnitSettings(curr.proc.Id, newUnit)
+					curr.proc.Start()
+				})
+			} else {
+				slog.Debug("Unit settings are unchanged", "name", curr.setting.Name)
+			}
+		} else {
+			slog.Warn("Unit was deleted", "name", curr.setting.Name)
+			curr.proc.Stop()
+			unitManager.RemoveUnit(curr.proc.Id)
+
+			// delete process
+			for i, p := range c.processes {
+				if p.Id == curr.proc.Id {
+					c.processes = append(c.processes[:i], c.processes[i+1:]...)
+					break
+				}
+			}
+		}
+		// delete from new settings
+		delete(newSettingsMap, curr.setting.Name)
+	}
+
+	// create new units if we have
+	for _, newUnit := range newSettingsMap {
+		c.AddUnit(newUnit)
+	}
+
+	// starting units with auto start
+	for _, proc := range c.processes {
+		proc.UpdateStatus()
+		unit, err := unitManager.GetUnit(proc.Id)
+		if err != nil {
+			slog.Error("Failed to get unit while starting", "id", proc.Id, "error", err.Error())
+			continue
+		}
+		if unit.State != globals.State_Work && unit.Settings.AutoStart {
+			wg.Go(func() {
+				proc.Start()
+			})
+		}
+	}
+
+	// waiting for all units
+	wg.Wait()
+}
+
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range b {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // main working function. Controlling all units in the thread
@@ -93,7 +199,11 @@ func (c *Controller) Run() {
 		for _, proc := range c.processes {
 			// update unit state
 			proc.UpdateStatus()
-			unit := unitManager.GetUnit(proc.Id)
+			unit, err := unitManager.GetUnit(proc.Id)
+			if err != nil {
+				slog.Error("Failed to get unit while updating status", "id", proc.Id, "error", err.Error())
+				continue
+			}
 
 			// check action for process
 			if unit.Action != globals.Act_NoAction {

@@ -1,6 +1,7 @@
 package manager
 
 import (
+	"fmt"
 	"log/slog"
 	"service_orchestrator/internal/components/globals"
 	"sync"
@@ -54,15 +55,15 @@ func (m *Manager) RemoveUnit(id int) {
 	delete(m.units, id)
 }
 
-func (m *Manager) GetUnit(id int) globals.Unit {
+func (m *Manager) GetUnit(id int) (globals.Unit, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
 
 	if u, ok := m.units[id]; ok {
-		return *u
+		return *u, nil
 	}
 
-	return globals.Unit{}
+	return globals.Unit{}, fmt.Errorf("unit with id %d not found", id)
 }
 
 func (m *Manager) UpdateUnitState(id, state int) {

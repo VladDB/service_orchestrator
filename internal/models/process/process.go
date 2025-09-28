@@ -53,7 +53,12 @@ func (u *Process) isRunning() bool {
 func (u *Process) Start() error {
 	// get current settings for this unit
 	unitManager := manager.GetInstance()
-	unit := unitManager.GetUnit(u.Id)
+	unit, err := unitManager.GetUnit(u.Id)
+
+	if err != nil {
+		slog.Error("Failed to get unit while starting", "id", u.Id, "error", err.Error())
+		return err
+	}
 
 	if u.Pid != 0 && u.isRunning() {
 		slog.Warn("Unit is already running", "name", unit.Settings.Name, "pid", u.Pid)
@@ -62,7 +67,7 @@ func (u *Process) Start() error {
 	}
 
 	// check path
-	_, err := os.Stat(unit.Settings.Cmd)
+	_, err = os.Stat(unit.Settings.Cmd)
 	if os.IsNotExist(err) {
 		slog.Error("Path doesn't exist, can't start unit", "name", unit.Settings.Name, "cmd", unit.Settings.Cmd)
 		unitManager.UpdateUnitState(u.Id, globals.State_Failed)
@@ -108,7 +113,12 @@ func (u *Process) Start() error {
 func (u *Process) Stop() error {
 	// get current settings for this unit
 	unitManager := manager.GetInstance()
-	unit := unitManager.GetUnit(u.Id)
+	unit, err := unitManager.GetUnit(u.Id)
+
+	if err != nil {
+		slog.Error("Failed to get unit while stopping", "id", u.Id, "error", err.Error())
+		return err
+	}
 
 	if u.Pid == 0 || !u.isRunning() {
 		slog.Warn("Unit isn't running", "name", unit.Settings.Name, "pid", u.Pid)
@@ -176,7 +186,11 @@ func (u *Process) Restart() error {
 func (u *Process) UpdateStatus() {
 	// get current settings for this unit
 	unitManager := manager.GetInstance()
-	unit := unitManager.GetUnit(u.Id)
+	unit, err := unitManager.GetUnit(u.Id)
+	if err != nil {
+		slog.Error("Failed to get unit while updating status", "id", u.Id, "error", err.Error())
+	}
+
 	if unit.State == globals.State_Work {
 		// check process state
 		if u.Pid != 0 && !u.isRunning() {

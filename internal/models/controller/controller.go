@@ -2,10 +2,12 @@ package controller
 
 import (
 	"log/slog"
+	"service_orchestrator/internal/components/cache"
 	"service_orchestrator/internal/components/configuration"
 	"service_orchestrator/internal/components/globals"
 	"service_orchestrator/internal/models/manager"
 	"service_orchestrator/internal/models/process"
+	"strings"
 	"sync"
 	"time"
 )
@@ -99,7 +101,7 @@ func (c *Controller) reloadUnits() {
 	for _, curr := range currentSettings {
 		if newUnit, ok := newSettingsMap[curr.setting.Name]; ok {
 			// compare cmd and args
-			if newUnit.Cmd != curr.setting.Name ||
+			if newUnit.Cmd != curr.setting.Cmd ||
 				!equalStringSlices(newUnit.Args, curr.setting.Args) {
 				slog.Info("Unit settings changed, reload it", "name", curr.setting.Name)
 				wg.Go(func() {
@@ -168,14 +170,46 @@ func (c *Controller) Run() {
 	checkDelay := 5
 	slog.Info("Run controller loop")
 
+	unitManager := manager.GetInstance()
+
 	// check cache processes
+	cacheUnits := cache.LoadUnits()
+	for _, uCache := range cacheUnits.Units {
+		findUnit := false
+		for _, proc := range c.processes {
+			uSettings, err := unitManager.GetUnit(proc.Id)
+
+			if err != nil && uSettings.Settings.Name == uCache.Name {
+				// if find process than take pid
+				proc.Pid = uCache.Pid
+				slog.Debug("Process found in cache", "name", uCache.Name, "pid", uCache.Pid)
+
+				// if cmd or args changed than stop process
+				if !equalStringSlices(uSettings.Settings.Args, strings.Split(uCache.Args, " ")) || uSettings.Settings.Cmd != uCache.Cmd {
+					slog.Info("Process found in cache, but cmd or args changed, stop it", "name", uCache.Name)
+					proc.Stop()
+				}
+				findUnit = true
+				break
+			}
+		}
+		if findUnit {
+			continue
+		}
+
+		// if don't find unit, than stop process from cache
+		process.KillProcessByPid(uCache.Pid)
+		cache.DeleteUnitFromFile(uCache.Name)
+	} // for _, uCache := range cachUnits
+
+	// clear cache slice
+	cacheUnits.Units = nil
 
 	// start all with auto start
 	c.startAllUnits(true)
 
 	time.Sleep(time.Duration(checkDelay) * time.Second)
 
-	unitManager := manager.GetInstance()
 	for globals.ProcessRunning.Load() {
 		// check global actions
 		globalAct := unitManager.GetGlobalAction()
@@ -267,4 +301,7 @@ func (c *Controller) Run() {
 
 	// stop all processes
 	c.stopAllUnit()
+
+	// delete cache file
+	cache.DeleteCacheFile()
 }

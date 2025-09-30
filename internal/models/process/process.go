@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"service_orchestrator/internal/components/cache"
 	"service_orchestrator/internal/components/globals"
 	"service_orchestrator/internal/models/manager"
 	"strings"
@@ -62,7 +63,8 @@ func (u *Process) Start() error {
 
 	if u.Pid != 0 && u.isRunning() {
 		slog.Warn("Unit is already running", "name", unit.Settings.Name, "pid", u.Pid)
-		unitManager.UpdateUnitState(u.Id, globals.State_Failed)
+		unitManager.UpdateUnitState(u.Id, globals.State_Work)
+		cache.UpdateUnitInFile(unit.Settings, u.Pid)
 		return nil
 	}
 
@@ -103,6 +105,7 @@ func (u *Process) Start() error {
 
 	// update unit state
 	unitManager.UpdateUnitState(u.Id, globals.State_Work)
+	cache.UpdateUnitInFile(unit.Settings, u.Pid)
 
 	slog.Info("Start process", "name", unit.Settings.Name, "pid", u.Pid)
 
@@ -122,6 +125,7 @@ func (u *Process) Stop() error {
 
 	if u.Pid == 0 || !u.isRunning() {
 		slog.Warn("Unit isn't running", "name", unit.Settings.Name, "pid", u.Pid)
+		cache.DeleteUnitFromFile(unit.Settings.Name)
 		unitManager.UpdateUnitState(u.Id, globals.State_Stop)
 		u.Pid = 0
 		return nil
@@ -150,6 +154,7 @@ func (u *Process) Stop() error {
 			u.Pid = 0
 			slog.Info("Process was stopped", "name", unit.Settings.Name)
 			unitManager.UpdateUnitState(u.Id, globals.State_Stop)
+			cache.DeleteUnitFromFile(unit.Settings.Name)
 			return nil
 		}
 		time.Sleep(500 * time.Millisecond)
@@ -169,8 +174,22 @@ func (u *Process) Stop() error {
 		u.Pid = 0
 		slog.Info("Process was stopped", "name", unit.Settings.Name)
 		unitManager.UpdateUnitState(u.Id, globals.State_Stop)
+		cache.DeleteUnitFromFile(unit.Settings.Name)
 	}
 	return nil
+}
+
+func KillProcessByPid(pid int) {
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		slog.Warn("Can not find process", "pid", pid)
+		return
+	}
+
+	err = proc.Signal(syscall.SIGKILL)
+	if err != nil {
+		slog.Warn("Error sending SIGKILL to process", "pid", pid)
+	}
 }
 
 // restart process
@@ -196,6 +215,7 @@ func (u *Process) UpdateStatus() {
 		if u.Pid != 0 && !u.isRunning() {
 			// it should to work, if it doesn't work, than it's failed
 			unitManager.UpdateUnitState(u.Id, globals.State_Failed)
+			cache.DeleteUnitFromFile(unit.Settings.Name)
 		}
 	}
 }

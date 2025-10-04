@@ -10,9 +10,14 @@ import (
 	"service_orchestrator/internal/components/globals"
 	"service_orchestrator/internal/components/logger"
 	"service_orchestrator/internal/models/controller"
+	"service_orchestrator/internal/server/routes"
 	"sync"
 	"syscall"
 
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
+	fiber_log "github.com/gofiber/fiber/v2/middleware/logger"
+	"github.com/gofiber/fiber/v2/middleware/recover"
 	"golang.org/x/term"
 )
 
@@ -67,6 +72,34 @@ func main() {
 		control.Run()
 	})
 
+	// create and run web server
+	httpServer := fiber.New(fiber.Config{
+		Prefork:       true,
+		CaseSensitive: true,
+		StrictRouting: true,
+	},
+	)
+
+	// set middleware
+	httpServer.Use(compress.New())  // compress response
+	httpServer.Use(recover.New())   // recover after panic
+	httpServer.Use(fiber_log.New()) // recover after panic
+
+	// register routes
+	routes.RegisterRoutes(httpServer)
+
+	// start http server
+	go func() {
+		slog.Info("Starting HTTP server")
+		portStr := fmt.Sprintf(":%d", globals.HttpPort)
+		if err = httpServer.Listen(portStr); err != nil {
+			slog.Error("Failed to start HTTP server", "error", err)
+			os.Exit(1)
+		} else {
+			slog.Info("HTTP server started successfully", "port", portStr)
+		}
+	}()
+
 	switch mode {
 	case "console":
 		runConsole()
@@ -77,6 +110,13 @@ func main() {
 	}
 
 	wg.Wait()
+
+	slog.Info("Shutdown HTTP server")
+	if err := httpServer.Shutdown(); err != nil {
+		slog.Error("HTTP server stop error", "error", err)
+	} else {
+		slog.Info("HTTP server stopped successfully")
+	}
 }
 
 func PrintInfo() {

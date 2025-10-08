@@ -61,7 +61,7 @@ func ReadConfiguration(logInstance *logger.Logger) (*[]globals.UnitSettings, err
 	}
 
 	// set http port
-	if globals.HttpPort != 0 {
+	if globals.HttpPort == 0 {
 		globals.HttpPort = config.Port
 		slog.Info("Set http port", "port", config.Port)
 	}

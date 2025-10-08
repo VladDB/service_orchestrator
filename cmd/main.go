@@ -41,7 +41,7 @@ func main() {
 	defer log.Deinit()
 
 	// handle args
-	slog.Debug("CMD", "value", fmt.Sprint(os.Args))
+	slog.Info("CMD", "value", fmt.Sprint(os.Args))
 
 	// get mode
 	mode := "unknown"
@@ -74,7 +74,7 @@ func main() {
 
 	// create and run web server
 	httpServer := fiber.New(fiber.Config{
-		Prefork:       true,
+		Prefork:       false,
 		CaseSensitive: true,
 		StrictRouting: true,
 	},
@@ -107,6 +107,7 @@ func main() {
 		runDaemon()
 	default:
 		PrintInfo()
+		return
 	}
 
 	wg.Wait()
@@ -127,6 +128,10 @@ func PrintInfo() {
 
 func runConsole() {
 	slog.Info("Press ESC to stop...")
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		slog.Error("Stdin is not a terminal")
+		return
+	}
 	// turn on raw mode
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {

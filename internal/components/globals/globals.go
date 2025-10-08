@@ -29,9 +29,14 @@ const (
 	Act_Stop
 	Act_Start
 	Act_Restart
-	Act_StartAll
-	Act_StopAll
-	Act_ReloadAll
+)
+
+// actions for all units
+const (
+	Act_Global_NoAction = iota
+	Act_Global_StartAll
+	Act_Global_StopAll
+	Act_Global_ReloadAll
 )
 
 var ProcSystemStates = map[string]int{

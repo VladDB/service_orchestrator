@@ -213,17 +213,17 @@ func (c *Controller) Run() {
 	for globals.ProcessRunning.Load() {
 		// check global actions
 		globalAct := unitManager.GetGlobalAction()
-		if globalAct != globals.Act_NoAction {
+		if globalAct != globals.Act_Global_NoAction {
 			switch globalAct {
-			case globals.Act_StartAll:
+			case globals.Act_Global_StartAll:
 				c.startAllUnits(false)
-			case globals.Act_StopAll:
+			case globals.Act_Global_StopAll:
 				c.stopAllUnit()
-			case globals.Act_ReloadAll:
+			case globals.Act_Global_ReloadAll:
 				c.reloadUnits()
 			}
 			// set global action to default
-			unitManager.SetGlobalAction(globals.Act_NoAction)
+			unitManager.SetGlobalAction(globals.Act_Global_NoAction)
 			// delay before next check
 			time.Sleep(time.Duration(checkDelay) * time.Second)
 			continue
@@ -272,7 +272,7 @@ func (c *Controller) Run() {
 				// if it failed update time
 				unitManager.SetUnitStopTime(proc.Id, time.Now())
 				// set waiting status
-				unitManager.SetUnitAction(proc.Id, globals.State_Timeout)
+				unitManager.UpdateUnitState(proc.Id, globals.State_Timeout)
 				slog.Warn("Process is failed, begin waiting for restart")
 			case globals.State_Timeout:
 				if unit.Settings.UseRestart {
@@ -282,13 +282,13 @@ func (c *Controller) Run() {
 						err := proc.Restart()
 						if err != nil {
 							slog.Error("Failed to restart process", "name", unit.Settings.Name)
-							unitManager.SetUnitAction(proc.Id, globals.State_Failed)
+							unitManager.UpdateUnitState(proc.Id, globals.State_Failed)
 						} else {
 							slog.Info("Process was restarted after fail", "name", unit.Settings.Name)
 						}
 					}
 				} else {
-					unitManager.SetUnitAction(proc.Id, globals.State_Stop)
+					unitManager.UpdateUnitState(proc.Id, globals.State_Stop)
 					slog.Warn("Process in timeout state, but restart is not configured", "name", unit.Settings.Name)
 				}
 			}

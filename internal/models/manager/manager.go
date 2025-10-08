@@ -55,6 +55,18 @@ func (m *Manager) RemoveUnit(id int) {
 	delete(m.units, id)
 }
 
+func (m *Manager) GetAllUnits() map[int]globals.Unit {
+	m.mtx.Lock()
+	defer m.mtx.Unlock()
+
+	allUnits := make(map[int]globals.Unit)
+	for id, u := range m.units {
+		allUnits[id] = *u
+	}
+
+	return allUnits
+}
+
 func (m *Manager) GetUnit(id int) (globals.Unit, error) {
 	m.mtx.Lock()
 	defer m.mtx.Unlock()
